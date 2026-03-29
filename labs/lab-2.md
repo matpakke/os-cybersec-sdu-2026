@@ -236,161 +236,84 @@ echo "10 3" | strace -e trace=read,write ./calc
 | `fwrite()`       | `write()`                 |
 | `fclose()`       | `close()`                 |
 
-### 2.2 ตัวอย่าง: เขียนไฟล์ 2 วิธี เปรียบเทียบกัน
+## Part 2 — File I/O ด้วย System Call
 
-สร้างไฟล์ `compare_write.c`:
+### 2.1 เปรียบเทียบ: Library vs Syscall
+
+สร้างไฟล์ `write_test.c`:
 
 ```c
-/* compare_write.c — compare fwrite vs write */
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <string.h>
-
-int main(void)
-{
-    const char *msg = "Hello from OS Lab!\n";
-
-    /* === Library function === */
-    FILE *fp = fopen("out_lib.txt", "w");
-    if (fp == NULL) { perror("fopen"); return 1; }
-    fprintf(fp, "%s", msg);
+int main(void) {
+    /* Library function */
+    FILE *fp = fopen("lib.txt", "w");
+    fprintf(fp, "from library\n");
     fclose(fp);
-    printf("[Library]  Write Success\n");
 
-    /* === System call === */
-    int fd = open("out_sys.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd < 0) { perror("open"); return 1; }
-    write(fd, msg, strlen(msg));
+    /* System call */
+    int fd = open("sys.txt", O_WRONLY|O_CREAT|O_TRUNC, 0644);
+    write(fd, "from syscall\n", 13);
     close(fd);
-    printf("[Syscall] Write Success\n");
-
-    return 0;
-}
-```
-
-คอมไพล์และรัน:
-
-```bash
-gcc -Wall -o compare_write compare_write.c
-./compare_write
-cat out_lib.txt
-cat out_sys.txt
-diff out_lib.txt out_sys.txt && echo "same content !"
-```
-
-**ลอง strace เปรียบเทียบ:**
-
-```bash
-strace -e trace=openat,write,close ./compare_write
-```
-
-> **สังเกต:** ทั้ง `fopen` และ `open` สุดท้ายก็เรียก `openat()` เหมือนกัน
-
-### 2.3 ตัวอย่าง: อ่านไฟล์ด้วย syscall
-
-สร้างไฟล์ `read_file.c`:
-
-```c
-/* read_file.c — read file using open + read */
-#include <fcntl.h>
-#include <unistd.h>
-#include <stdio.h>
-
-int main(void)
-{
-    char buf[256];
-
-    int fd = open("out_sys.txt", O_RDONLY);
-    if (fd < 0) {
-        perror("open");
-        return 1;
-    }
-
-    ssize_t n = read(fd, buf, sizeof(buf) - 1);
-    if (n < 0) {
-        perror("read");
-        close(fd);
-        return 1;
-    }
-
-    buf[n] = '\0';   /* null-terminate string */
-    close(fd);
-
-    printf("Read %zd bytes:\n%s", n, buf);
     return 0;
 }
 ```
 
 ```bash
-gcc -Wall -o read_file read_file.c
-./read_file
+gcc -Wall -o write_test write_test.c
+strace -e trace=openat,write,close ./write_test
+cat lib.txt
+cat sys.txt
 ```
 
-### 2.4 แบบฝึกหัดที่ 2 — mycp: Copy ไฟล์ด้วย syscall
+> **คำถาม 2.1:** ทั้ง `fopen` และ `open` สุดท้ายเรียก syscall ตัวเดียวกันหรือไม่? ตัวไหน?
+>
+> ```
+> ตอบ:
+>
+>
+> ```
 
-**โจทย์:** เติมโค้ดให้โปรแกรม `mycp.c` ทำงานเหมือน `cp` อย่างง่าย โดยใช้ syscall ที่เรียนมาจากตัวอย่าง 2.2 และ 2.3
+### 2.2 แบบฝึกหัด — เติม fd ให้ถูก
 
-```
-./mycp <source_file> <dest_file>
-```
-
-**โค้ด (เติม `_____` ให้ถูกต้อง — มี 2 จุด):**
+**โจทย์:** เติม `_____` (2 จุด) ให้โปรแกรม copy ไฟล์ทำงานได้
 
 ```c
-/* mycp.c — copy file using syscalls */
+/* mycp.c */
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
-
-#define BUF_SIZE 4096
-
-int main(int argc, char *argv[])
-{
-    if (argc != 3) {
-        fprintf(stderr, "Usage: %s <src> <dst>\n", argv[0]);
-        return 1;
-    }
-
-    int src_fd = open(argv[1], O_RDONLY);
-    if (src_fd < 0) { perror("open src"); return 1; }
-
-    int dst_fd = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (dst_fd < 0) { perror("open dst"); close(src_fd); return 1; }
-
-    char buf[BUF_SIZE];
+int main(int argc, char *argv[]) {
+    if (argc != 3) { printf("Usage: mycp src dst\n"); return 1; }
+    int src = open(argv[1], O_RDONLY);
+    int dst = open(argv[2], O_WRONLY|O_CREAT|O_TRUNC, 0644);
+    char buf[4096];
     ssize_t n;
-
-    while ((n = read(_____, buf, BUF_SIZE)) > 0) {
+    while ((n = read(_____, buf, 4096)) > 0)
         write(_____, buf, n);
-    }
-
-    if (n < 0) perror("read");
-
-    close(src_fd);
-    close(dst_fd);
+    close(src);
+    close(dst);
     return 0;
 }
 ```
 
-> **Hint:** ดูตัวอย่าง 2.3 — `read()` ต้องอ่านจาก fd ไหน? แล้ว `write()` ต้องเขียนไป fd ไหน?
+> **Hint:** `read()` อ่านจาก fd ไหน? `write()` เขียนไป fd ไหน?
 
-**ทดสอบ:**
+ทดสอบ:
 
 ```bash
 gcc -Wall -o mycp mycp.c
-echo "This is a test file with some content." > sample.txt
+echo "Hello OS Lab" > sample.txt
 ./mycp sample.txt copy.txt
-diff sample.txt copy.txt && echo "PASS: files are identical"
+diff sample.txt copy.txt && echo "PASS"
 ```
 
-**ทดสอบ strace:**
-
-```bash
-strace -e trace=openat,read,write,close ./mycp sample.txt copy2.txt
-```
-
-> **คำถาม 2.1:** `read()` และ `write()` ถูกเรียกกี่ครั้ง? ทำไม?
+> **คำถาม 2.2:** ใช้ strace ดู — `read()` และ `write()` ถูกเรียกอย่างละกี่ครั้ง? ทำไม?
+>
+> ```
+> strace -e trace=openat,read,write,close ./mycp sample.txt copy2.txt
+> ```
 >
 > ```
 > ตอบ:
