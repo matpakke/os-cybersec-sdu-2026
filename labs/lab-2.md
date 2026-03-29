@@ -360,168 +360,78 @@ diff sample.txt copy.txt && echo "PASS"
 ```
   Parent (PID=100)
       │
-      ├── fork() ────► Child (PID=101)    ← copy of parent
+      ├── fork() ────► Child (PID=101)    ← copy ของ parent
       │                    │
-      │                    └── exec("ls")  ← replace program with new one
+      │                    └── exec("ls")  ← แทนที่ด้วยโปรแกรมใหม่
       │
-      └── wait() ← wait for child to finish
+      └── wait() ← รอ child จบ
 ```
 
 | System Call   | หน้าที่ |
 |:--------------|:--------|
 | `fork()`      | สร้าง process ลูก (สำเนาของแม่) |
-| `getpid()`    | คืน PID ของ process ปัจจุบัน |
-| `getppid()`   | คืน PID ของ process แม่ |
-| `execlp()`    | แทนที่โปรแกรมปัจจุบันด้วยโปรแกรมใหม่ |
+| `exec()`      | แทนที่โปรแกรมปัจจุบันด้วยโปรแกรมใหม่ |
 | `wait()`      | รอ process ลูกจบ |
 
-### 3.2 ตัวอย่าง: fork เบื้องต้น
+### 3.2 ตัวอย่าง: fork + exec + wait
 
-สร้างไฟล์ `fork_basic.c`:
-
-```c
-/* fork_basic.c — first fork */
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/wait.h>
-
-int main(void)
-{
-    printf("Before fork: PID = %d\n", getpid());
-
-    pid_t pid = fork();
-
-    if (pid < 0) {
-        perror("fork");
-        return 1;
-    }
-
-    if (pid == 0) {
-        /* === Child process === */
-        printf("  [Child]  PID = %d, Parent PID = %d\n",
-               getpid(), getppid());
-    } else {
-        /* === Parent process === */
-        printf("  [Parent] PID = %d, Child PID = %d\n",
-               getpid(), pid);
-        wait(NULL);   /* wait for child to finish */
-        printf("  [Parent] Child Completed\n");
-    }
-
-    return 0;
-}
-```
-
-```bash
-gcc -Wall -o fork_basic fork_basic.c
-./fork_basic
-```
-
-**ผลลัพธ์ตัวอย่าง (PID จะต่างกัน):**
-
-```
-Before fork: PID = 5001
-  [Parent] PID = 5001, Child PID = 5002
-  [Child]  PID = 5002, Parent PID = 5001
-  [Parent] Child Completed
-```
-
-**ลองรันหลายครั้ง** — ลำดับ [Parent] กับ [Child] อาจสลับกัน ทำไม?
-
-### 3.3 ตัวอย่าง: fork + exec + wait
-
-สร้างไฟล์ `fork_exec.c`:
+สร้างไฟล์ `run_cmd.c`:
 
 ```c
-/* fork_exec.c — create child to run ls command */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
-
-int main(void)
-{
-    printf("Parent PID = %d\n", getpid());
-
+int main(void) {
     pid_t pid = fork();
-
-    if (pid < 0) {
-        perror("fork");
-        return 1;
-    }
-
     if (pid == 0) {
-        printf("  Child PID = %d -> exec(ls -la)\n", getpid());
-        execlp("ls", "ls", "-la", NULL);
-        perror("execlp");
+        printf("[Child  PID=%d] running ls...\n", getpid());
+        execlp("ls", "ls", "-l", NULL);
+        perror("exec failed");
         exit(1);
     }
-
-    int status;
-    waitpid(pid, &status, 0);
-
-    if (WIFEXITED(status))
-        printf("Parent: Child exit code %d\n",
-               WEXITSTATUS(status));
-
+    wait(NULL);
+    printf("[Parent PID=%d] child done\n", getpid());
     return 0;
 }
 ```
 
 ```bash
-gcc -Wall -o fork_exec fork_exec.c
-./fork_exec
+gcc -Wall -o run_cmd run_cmd.c
+./run_cmd
 ```
 
-**strace ดู process:**
+**ลองเปลี่ยนคำสั่ง** — แก้ `execlp("ls", "ls", "-l", NULL)` เป็น:
+
+```c
+execlp("date", "date", NULL);           /* แสดงวันที่ */
+execlp("whoami", "whoami", NULL);       /* แสดง username */
+execlp("xyznotfound", "xyznotfound", NULL);  /* คำสั่งผิด */
+```
+
+> **คำถาม 3.1:** ถ้าใส่คำสั่งผิด (xyznotfound) เกิดอะไรขึ้น? ทำไม `perror` ถึงทำงาน?
+>
+> ```
+> ตอบ:
+>
+>
+> ```
+
+> **คำถาม 3.2:** ถ้า `exec` สำเร็จ โค้ดบรรทัดหลัง exec จะถูกรันไหม? ทำไม?
+>
+> ```
+> ตอบ:
+>
+>
+> ```
+
+### 3.3 strace ดู process syscalls
 
 ```bash
-strace -f -e trace=clone,execve,wait4 ./fork_exec
+strace -f -e trace=clone,execve,wait4 ./run_cmd
 ```
 
-> **หมายเหตุ:** `-f` = ติดตาม child ด้วย, `clone` = syscall จริงที่ `fork()` เรียก
-
-### 3.4 แบบฝึกหัดที่ 3 — fork + exec เปลี่ยนคำสั่ง
-
-ลองแก้ไฟล์ `fork_exec.c` โดยเปลี่ยน `execlp("ls", "ls", "-la", NULL)` เป็นคำสั่งอื่น แล้วรันดู:
-
-**ลองที่ 1:**
-```c
-execlp("date", "date", NULL);
-```
-
-**ลองที่ 2:**
-```c
-execlp("whoami", "whoami", NULL);
-```
-
-**ลองที่ 3:**
-```c
-execlp("uname", "uname", "-a", NULL);
-```
-
-**ลองที่ 4 (ใส่คำสั่งผิด):**
-```c
-execlp("xyznotfound", "xyznotfound", NULL);
-```
-
-> **คำถาม 3.1:** ลองที่ 4 เกิดอะไรขึ้น? ทำไม `perror` ถึงพิมพ์ออกมาได้?
->
-> ```
-> ตอบ:
->
->
-> ```
-
-> **คำถาม 3.2:** ถ้า `execlp` สำเร็จ โค้ดบรรทัดหลัง `execlp` จะถูกรันไหม? ทำไม?
->
-> ```
-> ตอบ:
->
->
-> ```
-
-> **คำถาม 3.3:** ลอง `strace -f ./fork_exec` — หา syscall `execve` ดูว่า argument เป็นอะไร
+> **คำถาม 3.3:** `fork()` จริงๆ แล้วเรียก syscall ชื่ออะไร? (`-f` หมายถึงอะไร?)
 >
 > ```
 > ตอบ:
