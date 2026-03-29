@@ -59,7 +59,10 @@ strace -e trace=write ./hello
 > **คำถาม 1.1:** เลข `1` ใน `write(1, ...)` คืออะไร?
 >
 > ```
-> ตอบ:
+> ตอบ: write(1, "Hello, World!\n", 14Hello, World!
+)         = 14
++++ exited with 0 +++
+
 >
 >
 > ```
