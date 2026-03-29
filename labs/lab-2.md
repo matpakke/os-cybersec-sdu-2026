@@ -271,6 +271,25 @@ cat sys.txt
 >
 > ```
 > ตอบ:ใช่ครับ ทั้งคู่เรียกใช้ System Call ตัวเดียวกัน คือ openat
+>
+>strace -e trace=openat,write,close ./write_test
+>cat lib.txt
+>cat sys.txt
+>openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+>close(3)                                = 0
+>openat(AT_FDCWD, "/usr/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+>close(3)                                = 0
+>openat(AT_FDCWD, "lib.txt", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3
+>write(3, "from library\n", 13)          = 13
+>close(3)                                = 0
+>openat(AT_FDCWD, "sys.txt", O_WRONLY|O_CREAT|O_TRUNC, 0644) = 3
+>write(3, "from syscall\n", 13)          = 13
+>close(3)                                = 0
+>+++ exited with 0 +++
+>from library
+>from syscall
+>                                    
+> 
 >ข้อสังเกตเพิ่มเติมที่น่าสนใจจากภาพ:
 >Flag การเปิดไฟล์: สังเกตว่า fopen(..., "w") ถูก Library แปลงค่าเป็น Flag ของระบบอย่าง O_WRONLY|O_CREAT|O_TRUNC ให้โดยอัตโนมัติ ซึ่งตรงกับที่เราเขียนใน open() แบบเป๊ะๆ
 >
