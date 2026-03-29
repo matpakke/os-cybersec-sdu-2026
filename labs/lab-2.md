@@ -98,6 +98,16 @@ gcc -Wall -o greet greet.c
 ```bash
 strace -e trace=read,write ./greet
 ```
+> **คำถาม 1.2:** `scanf()` เรียก syscall อะไร? fd เป็นเลขอะไร?
+>
+> ```
+> ตอบ:read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0000\241\2\0\0\0\0\0"..., 832) = 832
+>write(1, "What is your name? ", 19What is your name? )     = 19
+>read(0
+>
+>
+> ```
+
 
 **สิ่งที่ควรสังเกต:**
 
